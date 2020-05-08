@@ -2,7 +2,7 @@ const functions = require('firebase-functions')
 const admin = require('firebase-admin')
 const firebase = require('firebase')
 const app = require('express')()
-const db = admin.firestore()
+
 const firebaseConfig = {
     apiKey: "AIzaSyDl3rOGtSFsTaLJPPaQYSjB5lceU8frA3Q",
     authDomain: "socialapp0427.firebaseapp.com",
@@ -16,7 +16,7 @@ const firebaseConfig = {
 }
 admin.initializeApp(firebaseConfig)
 firebase.initializeApp(firebaseConfig)
-
+const db = admin.firestore()
 // https://baseurl.com/api/
 exports.api = functions.https.onRequest(app)
 
@@ -79,14 +79,41 @@ app.post('/signup', (req, res) => {
     }
 
     //TODO: validate data
-
-    firebase.auth().createUserWithEmailAndPassword(newUser.email, newUser.password)
+    let token, userId
+    db.doc(`/users/${newUser.handle}`).get()
+    .then( (doc) => {
+        if (doc.exists) {
+            return res.status(400).json({ message: `${newUser.handle} is already taken.`})
+        } else {
+            return firebase.auth().createUserWithEmailAndPassword(newUser.email, newUser.password)
+        }
+    })
     .then((data) => {
-        return res.status(201).json({ message: `User ${data.user.uid} signed up successfully`})
+        userId = data.user.uid
+        return data.user.getIdToken()
+        // res.status(201).json({ message: `User ${data.user.uid} signed up successfully`})
+    })
+    .then((idToken) => {
+        token = idToken //Why? token = token would return an empty object
+        const userCredentials = {
+            handle: newUser.handle,
+            createdAt: new Date().toISOString(),
+            email: newUser.email,
+            userId
+        }
+                                                //.set() creates a doc
+        return db.doc(`/users/${newUser.handle}`).set(userCredentials) 
+    })
+    .then(() => {
+        return res.status(201).json({ token })
     })
     .catch((err) => {
         console.error(err)
-        return res.status(500).json({ error: err.code })
+        if (err.code === 'auth/email-already-in-use') {
+            return res.status(400).json({ email: `Email is already taken.`})
+        } else {
+            return res.status(500).json({ error: err.code })
+        }
     })
 })
 
