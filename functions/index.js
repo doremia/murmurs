@@ -17,10 +17,8 @@ const firebaseConfig = {
 admin.initializeApp(firebaseConfig)
 firebase.initializeApp(firebaseConfig)
 const db = admin.firestore()
-// https://baseurl.com/api/
-exports.api = functions.https.onRequest(app)
 
-// Murmurs
+// ***************  Murmurs  ************
 // first parameter is the name of the route, second is the handler
 app.get('/murmurs', (req, res) => {
     db.collection("murmurs").orderBy('createdAt','desc').get()
@@ -49,16 +47,14 @@ app.get('/murmurs', (req, res) => {
 //     })
 //     .catch(err => console.error(err))
 // })
-
 app.post('/murmur', (req, res) => {
     const newMurmur = {
         body: req.body.body,
         userHandle: req.body.userHandle,
-        // createdAt: admin.firestore.Timestamp.fromDate(new Date())
         createdAt: new Date().toISOString()
     }
-
-    db.collection('murmurs').add(newMurmur) //新增newMurmur 在firestore database collection裡的murmur
+    //新增newMurmur 在firestore database collection裡的murmur
+    db.collection('murmurs').add(newMurmur) 
     .then((doc) => {
         res.json({ message: `document ${doc.id} was created successfully`})
     })
@@ -67,8 +63,19 @@ app.post('/murmur', (req, res) => {
         console.error(err)
     })
 })
+//helper functions
+const isEmpty = (string) => {
+    if (string.trim() === '') return true
+    else return false
+}
 
-// User's registration
+const isEmail = (email) => {
+    const emailRegEx = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
+    if (email.match(emailRegEx)) return true
+    else return false
+}
+
+// ***************User's registration************
 // Signup route
 app.post('/signup', (req, res) => {
     const newUser = {
@@ -77,8 +84,20 @@ app.post('/signup', (req, res) => {
         confirmedPassword: req.body.confirmedPassword,
         handle: req.body.handle,
     }
+    // Validate the data before sending to the server to check if the handle or email is taken.
+    let errors = {}
+    if (isEmpty(newUser.email)) {
+        errors.email = 'Must not be empty.'
+    } else if (!isEmail(newUser.email)) {
+            errors.email = 'Must be a valid email address'
+    }
+    if (isEmpty(newUser.password)) errors.password = 'Must not be empty'
+    if (newUser.confirmedPassword !== newUser.password ) errors.confirmedPassword = 'Password is not the same'
+    if (isEmpty(newUser.handle)) errors.handle = 'Must not be empty'
+    
+    if (Object.keys(errors).length > 0) return res.status(400).json(errors)
 
-    //TODO: validate data
+    //check if the handle or email is taken. 
     let token, userId
     db.doc(`/users/${newUser.handle}`).get()
     .then( (doc) => {
@@ -91,7 +110,6 @@ app.post('/signup', (req, res) => {
     .then((data) => {
         userId = data.user.uid
         return data.user.getIdToken()
-        // res.status(201).json({ message: `User ${data.user.uid} signed up successfully`})
     })
     .then((idToken) => {
         token = idToken //Why? token = token would return an empty object
@@ -117,4 +135,5 @@ app.post('/signup', (req, res) => {
     })
 })
 
-
+// https://baseurl.com/api/
+exports.api = functions.https.onRequest(app)
