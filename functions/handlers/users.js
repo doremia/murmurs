@@ -1,5 +1,5 @@
-const { db } = require('../utility/admin')
-const { validateUserSignup, validateLogin } = require('../utility/validation')
+const { admin, db } = require('../utility/admin')
+const { validateUserSignup, validateLogin, reduceUserDetails } = require('../utility/validation')
 const firebase = require('firebase')
 const firebaseConfig = require('../utility/config')
 
@@ -16,6 +16,7 @@ exports.signup = (req, res) => {
     const { errors, valid } = validateUserSignup(newUser)
     if (!valid) return res.status(400).json(errors)
 
+    const noImg = 'no-img.png'
     //check if the handle or email is taken. 
     let token, userId
     db.doc(`/users/${newUser.handle}`).get()
@@ -36,6 +37,7 @@ exports.signup = (req, res) => {
             handle: newUser.handle,
             createdAt: new Date().toISOString(),
             email: newUser.email,
+            imageUrl: `https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/${noImg}?alt=media`,
             userId
         }
                                                 //.set() creates a doc
@@ -80,3 +82,95 @@ exports.login = (req, res) => {
         }
     })
 }
+
+
+exports.addUserDetails = (req, res) => {
+    let userDetails = reduceUserDetails(req.body)
+    db.doc(`/users/${req.user.handle}`).update(userDetails)
+    .then(() => {
+        return res.json({ message :'Details added.' })
+    })
+    .catch((err) => {
+        console.error(err)
+        return res.status(500).json({ error: err.code})
+    })
+}
+
+
+exports.getUserInfo = (req, res) => {
+    let userData = {}
+    db.doc(`/users/${req.user.handle}`).get()
+    .then((doc) => {
+        if(doc.exists) {
+            userData.credentials = doc.data()
+            return db.collection('likes').where('userHandle', '==', req.user.handle).get()        
+        }
+    })
+    .then( (data) => {
+        userData.likes = []
+        data.forEach((doc) => {
+            userData.likes.push(doc.data())
+        })
+        return res.json(userData)
+    })
+    .catch((err) => {
+        console.error(err)
+        return res.status(500).json({ error: err.code })
+    })
+}
+
+
+exports.uploadImage = (req,res) => {
+    const Busboy = require('busboy')
+    const path = require('path')
+    const os = require('os')
+    const fs = require('fs')
+
+    const busboy = new Busboy({ headers: req.headers })
+
+    let imageToBeUploaded = {}
+    let imageFilename
+
+    busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
+        if (mimetype !== 'image/jpeg' && mimetype !== 'image/png') {
+            return res.status(400).json({ message: "uh oh! Wrong media type." })
+        }
+        //.png
+        const imageExtension = filename.split('.')[filename.split('.').length - 1]
+        // 39779856349.png
+        imageFilename = `${Math.round(Math.random()*100000000000)}.${imageExtension}`
+        // what does it look like ? 
+        const filepath = path.join(os.tmpdir(), imageFilename)
+        imageToBeUploaded = { filepath, mimetype }
+        // create a file
+        file.pipe(fs.createWriteStream(filepath))
+    })
+
+    busboy.on('finish', () => {
+        admin.storage().bucket().upload(imageToBeUploaded.filepath, {
+            resumable: false,
+            metadata: {
+                metadata: {
+                    contentType: imageToBeUploaded.mimetype
+                }
+            }
+        }) //upload the file to storage?
+        .then(() => {
+            // adding alt=media will show the image in the browser instead of downloading it. 
+            const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/${imageFilename}?alt=media`
+            // add the URL to our db of users. It's authenticated already so we have a user obejct here for the use.
+            return db.doc(`/users/${req.user.handle}`).update({ imageUrl })
+        })
+        .then(() => {
+            return res.json({ message: 'Image was uploaded successfully'})
+        })
+        .catch((err) => {
+            console.error(err)
+            return res.status(500).json({ error: err.code })
+        })
+    })
+
+    busboy.end(req.rawBody)
+}
+
+
