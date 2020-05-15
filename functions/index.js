@@ -1,13 +1,16 @@
 const functions = require('firebase-functions')
 const app = require('express')()
 
-const { getAllMurmurs, postMurmur } = require('./handlers/murmurs')
+const { getAllMurmurs, postMurmur, getMurmur } = require('./handlers/murmurs')
 const { signup, login, uploadImage, addUserDetails, getUserInfo } = require('./handlers/users')
 const fbAuth = require('./utility/fbAuth')
 
 // Murmurs  routes 
 app.get('/murmurs', getAllMurmurs)
 app.post('/murmur', fbAuth, postMurmur)
+app.get('/murmur/:murmurId', getMurmur)
+//app.post('murmur/comment', comment)
+
 
 // Users routes
 app.post('/signup', signup)

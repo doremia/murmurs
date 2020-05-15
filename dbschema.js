@@ -9,7 +9,7 @@ let db = {
             website: 'https://users.com',
             location:'london, UK',
         }
-    ]
+    ],
     murmurs: [
         {
             userHandle: 'user',
@@ -17,6 +17,14 @@ let db = {
             createdAt: "2020-05-06T23:38:58.665Z"
             likeCount: 5,
             commentCount: 2
+        }
+    ],
+    comments: [
+        {
+            userHandle: 'user',
+            murmurId: '3XMLH5Vw5LT5y4JYTiTT',
+            body: 'Nice',
+            createdAt: '2020-05-06T23:38:58.665Z'
         }
     ]
 }

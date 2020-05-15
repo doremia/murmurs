@@ -1,6 +1,6 @@
 const { db } = require('../utility/admin')
 
-const getAllMurmurs = (req, res) => {
+exports.getAllMurmurs = (req, res) => {
     db.collection("murmurs").orderBy('createdAt','desc').get()
     .then(data => {
         let murmurs = []
@@ -17,7 +17,8 @@ const getAllMurmurs = (req, res) => {
     .catch(err => console.error(err))
 }
 
-const postMurmur = (req, res) => {
+
+exports.postMurmur = (req, res) => {
     const newMurmur = {
         body: req.body.body,
         userHandle: req.user.handle, //From FBAuth line66
@@ -34,4 +35,27 @@ const postMurmur = (req, res) => {
     })
 }
 
-module.exports = { getAllMurmurs, postMurmur }
+
+exports.getMurmur = (req,res) => {
+    let murmurData = {}
+    db.doc(`/murmurs/${req.params.murmurId}`).get()
+    .then((doc) => {
+        if (!doc.exists) {
+            return res.status(404).json({ message: 'Murmur not found' })
+        }
+        murmurData = doc.data()
+        murmurData.murmurId = doc.id
+        return db.collection('comments').where('murmurId', '==', req.params.murmurId).get()
+    })
+    .then((data) => {
+        murmurData.comments = []
+        data.forEach((doc) => {
+            murmurData.comments.push(doc.data())
+        })
+        return res.json(murmurData)
+    })
+    .catch((err) => {
+        console.error(err)
+        res.status(500).json({ error: err.code})
+    })
+}
