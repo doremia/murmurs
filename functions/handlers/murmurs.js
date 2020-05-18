@@ -127,12 +127,52 @@ exports.likeComment = (req, res) => {
                 return res.json(murmurData)
             })
         } else {
-            return res.status(400).json({ error: "Murmur already liked" })
+            console.log(murmurData)
+            return res.status(400).json({ error: "Yo~ you already liked" })
         }
     })
     .catch( (err) => {
         console.error(err)
         res.status(500).json({ error: err.code })
+    })
+}
+
+
+exports.unlikeComment = (req, res) => {
+
+    const likeDoc = db.collection('likes').where("userHandle", "==", req.user.handle)
+    .where("murmurId", "==", req.params.murmurId).limit(1)
+
+    const murmurDoc = db.doc(`/murmurs/${req.params.murmurId}`)
+
+    let murmurData
+    murmurDoc.get()
+    .then( (doc) => {
+        if (doc.exists) {
+            murmurData = doc.data()
+            murmurData.murmurId = doc.id // Because doc.data() doesn't have id
+            return likeDoc.get()
+        } else {
+            return res.status(404).json({ message: "Hey! Murmur doesn't exist." })
+        }
+    })
+    .then( (data) => {
+        if (data.empty) {
+            return res.status(400).json({ error: "You can't unlike what you didn't like. That's life." })
+        } else {
+            db.doc(`/likes/${data.docs[0].data().id}`).delete()
+            .then( ()=> {
+                murmurData.likeCount -= 1
+                return murmurDoc.update({ likeCount: murmurData.likeCount })
+            })
+            .then( ()=> {
+                return res.json(murmurData)
+            })
+        }
+    })
+    .catch( (err) => {
+        console.error(err)
+        return res.status(500).json({ error: err.code })
     })
 }
 
