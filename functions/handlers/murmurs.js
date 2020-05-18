@@ -22,12 +22,17 @@ exports.postMurmur = (req, res) => {
     const newMurmur = {
         body: req.body.body,
         userHandle: req.user.handle, //From FBAuth line66
-        createdAt: new Date().toISOString()
+        userImage: req.user.imageUrl,
+        createdAt: new Date().toISOString(),
+        likeCount: 0,
+        commentCount: 0
     }
     //新增newMurmur 在firestore database collection裡的murmur
     db.collection('murmurs').add(newMurmur) 
     .then((doc) => {
-        res.json({ message: `document ${doc.id} was created successfully`})
+        const resMurmur = newMurmur
+        resMurmur.murmurId = doc.id
+        res.json(resMurmur)
     })
     .catch((err) => {
         res.status(500).json({ error: "something went wrong"})
@@ -84,6 +89,50 @@ exports.makeComment = (req,res) => {
     .catch((err) => {
         console.error(err)
         return res.status(500).json({ message: 'something went wrong' })
+    })
+}
+
+
+exports.likeComment = (req, res) => {
+    const likeDoc = db.collection('likes').where('userHandle', '==', req.user.handle)
+    .where('murmurId', '==', req.params.murmurId).limit(1)
+
+    const murmurDoc = db.doc(`/murmurs/${req.params.murmurId}`)
+
+    let murmurData
+
+    murmurDoc.get()
+    .then( (doc) => {
+        if(doc.exists){
+            murmurData = doc.data()
+            murmurData.murmurId = doc.id
+
+            return likeDoc.get()
+        } else {
+            return res.status(404).json({ error: "Murmur Not found"})
+        }
+    })
+    .then( (data) => {
+        if(data.empty){
+            return db.collection('likes').add({
+                murmurId: req.params.murmurId,
+                userHandle: req.user.handle
+            })
+            .then(() => {
+                console.log(murmurData.likeCount)
+                murmurData.likeCount += 1
+                return murmurDoc.update({ likeCount: murmurData.likeCount })
+            })
+            .then(() => {
+                return res.json(murmurData)
+            })
+        } else {
+            return res.status(400).json({ error: "Murmur already liked" })
+        }
+    })
+    .catch( (err) => {
+        console.error(err)
+        res.status(500).json({ error: err.code })
     })
 }
 
