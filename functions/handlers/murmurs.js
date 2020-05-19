@@ -2,7 +2,7 @@ const { db } = require('../utility/admin')
 
 exports.getAllMurmurs = (req, res) => {
     db.collection("murmurs").orderBy('createdAt','desc').get()
-    .then(data => {
+    .then( (data) => {
         let murmurs = []
         data.forEach(doc => {
             murmurs.push({
@@ -14,7 +14,7 @@ exports.getAllMurmurs = (req, res) => {
         })
         return res.json(murmurs)
     })
-    .catch(err => console.error(err))
+    .catch( (err) => console.error(err))
 }
 
 
@@ -29,12 +29,12 @@ exports.postMurmur = (req, res) => {
     }
     //新增newMurmur 在firestore database collection裡的murmur
     db.collection('murmurs').add(newMurmur) 
-    .then((doc) => {
+    .then( (doc) => {
         const resMurmur = newMurmur
         resMurmur.murmurId = doc.id
         res.json(resMurmur)
     })
-    .catch((err) => {
+    .catch( (err) => {
         res.status(500).json({ error: "something went wrong"})
         console.error(err)
     })
@@ -44,7 +44,7 @@ exports.postMurmur = (req, res) => {
 exports.getMurmur = (req,res) => {
     let murmurData = {}
     db.doc(`/murmurs/${req.params.murmurId}`).get()
-    .then((doc) => {
+    .then( (doc) => {
         if (!doc.exists) {
             return res.status(404).json({ message: 'Murmur not found' })
         }
@@ -52,16 +52,39 @@ exports.getMurmur = (req,res) => {
         murmurData.murmurId = doc.id
         return db.collection('comments').orderBy('createdAt','desc').where('murmurId', '==', req.params.murmurId).get()
     })
-    .then((data) => {
+    .then( (data) => {
         murmurData.comments = []
         data.forEach((doc) => {
             murmurData.comments.push(doc.data())
         })
         return res.json(murmurData)
     })
-    .catch((err) => {
+    .catch( (err) => {
         console.error(err)
         res.status(500).json({ error: err.code})
+    })
+}
+
+
+exports.deleteMurmur = (req, res) => {
+    const murmurDoc = db.doc(`/murmurs/${ req.params.murmurId }`)
+    murmurDoc.get()
+    .then( (doc) => {
+        if(!doc.exists) {
+            return res.status(404).json({ error: "Are you trying to delete something that doesn't exist?!"})
+        }
+        if (doc.data().userHandle !== req.user.handle) {
+            return res.status(403).json({ error: "Unauthorized" })
+        } else {
+            return murmurDoc.delete()
+        }
+    })
+    .then( () => {
+        res.json({ message: "Murmur Deleted "})
+    })
+    .catch( (err) => {
+        console.error(err)
+        return res.status(500).json({ error: err.code })
     })
 }
 
@@ -81,12 +104,15 @@ exports.makeComment = (req,res) => {
         if (!doc.exists) {
             return res.status(404).json({ error: 'Murmur not found' })
         }
+        return doc.ref.update({ commentCount: doc.data().commentCount +1 })
+    })
+    .then( ()=> {
         return db.collection('comments').add(newComment)
     })
-    .then(()=> {
+    .then( ()=> {
         res.json(newComment)
     })
-    .catch((err) => {
+    .catch( (err) => {
         console.error(err)
         return res.status(500).json({ message: 'something went wrong' })
     })
@@ -160,7 +186,7 @@ exports.unlikeComment = (req, res) => {
         if (data.empty) {
             return res.status(400).json({ error: "You can't unlike what you didn't like. That's life." })
         } else {
-            db.doc(`/likes/${data.docs[0].data().id}`).delete()
+            db.doc(`/likes/${data.docs[0].id}`).delete()
             .then( ()=> {
                 murmurData.likeCount -= 1
                 return murmurDoc.update({ likeCount: murmurData.likeCount })
