@@ -26,6 +26,16 @@ let db = {
             body: 'Nice',
             createdAt: '2020-05-06T23:38:58.665Z'
         }
+    ],
+    notifications: [
+        {
+            recipient: 'user',
+            sender: 'john',
+            read: 'true | false',
+            murmurId: '3XMLH5Vw5LT5y4JYTiTT',
+            type: 'like | comment',
+            createdAt: '2020-05-07T23:38:58.665Z'
+        }
     ]
 }
 
